@@ -31,14 +31,14 @@ A modern, contactless, real-time face recognition attendance system built with F
 
 ```text
 AttendAI/
-├── dataset/                  # Registration images folder (Gitignored, created automatically)
-│   ├── 1/                    # Roll 1 photos (locally saved)
+├── dataset/                  # Registration images folder (grouped by Roll Number)
+│   ├── 1/                    # Roll 1 photos
 │   └── ...
 ├── static/                   # CSS and JS frontend assets
 ├── templates/                # HTML pages (Home, Registration, History, About)
 ├── app.py                    # Main Flask application and server APIs
-├── build_face_db.py          # Script extracting face embeddings (creates dataset/ automatically if missing)
-├── face_db.npz               # Compiled ArcFace face embeddings database (Gitignored)
+├── build_face_db.py          # Script extracting face embeddings to generate database
+├── face_db.npz               # Compiled ArcFace face embeddings database
 ├── students.csv              # Master list of registered students (roll_no, name)
 ├── requirements.txt          # Python dependency list
 └── README.md                 # Project documentation
@@ -58,15 +58,11 @@ cd d:\projects\done\AttendAI
 ```
 
 ### 3. Activate the Virtual Environment
-Activate the pre-existing virtual environment:
-* **PowerShell**:
-  ```powershell
-  .\venv\Scripts\Activate.ps1
-  ```
-* **Command Prompt (CMD)**:
-  ```cmd
-  venv\Scripts\activate.bat
-  ```
+create and active the virtual environment:
+```powershell
+python -m venv venv
+.\venv\Scripts\Activate.ps1
+```
 
 ### 4. Install Dependencies
 Install dependencies inside the virtual environment:
