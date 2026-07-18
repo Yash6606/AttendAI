@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints
+
+# Virtual Environment
+venv/
+.venv/
+env/
+
+# Data / Model cache (generated dynamically)
+face_db.npz
+dataset/
+
+
+# Attendance logs (generated dynamically)
+attendance_*.csv
+attendance.csv
+
+# IDE/OS files
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

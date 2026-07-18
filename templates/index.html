@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Attendance</title>
+
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+
+<body>
+
+<nav class="navbar navbar-dark fixed-top">
+  <div class="container d-flex justify-content-between align-items-center">
+    <span class="navbar-brand fw-bold">AI Attendance</span>
+
+    <ul class="nav nav-pills gap-3">
+      <li class="nav-item">
+        <a class="nav-link {% if request.path == '/' %}active{% endif %}" href="/">Home</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.path == '/register' %}active{% endif %}" href="/register">Register Student</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.path == '/history' %}active{% endif %}" href="/history">History</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link {% if request.path == '/about' %}active{% endif %}" href="/about">About</a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>AI Face Recognition Attendance</h1>
+  <p>Automatic & contactless attendance system</p>
+</section>
+
+<!-- LIVE FEED -->
+<div class="container mb-4">
+  <div class="row justify-content-center">
+    <div class="col-lg-6">
+
+      <div class="card card-dark p-3">
+        <div class="d-flex justify-content-between mb-1 align-items-center">
+          <h6 class="text-white fw-bold m-0">Live Camera Feed</h6>
+          <div class="text-end">
+            <span id="statusText" class="badge bg-secondary me-2">Stopped</span>
+            <span id="sessionText" class="badge bg-primary">Session: Loading...</span>
+          </div>
+        </div>
+
+        <div class="camera-wrapper small-camera">
+          <div id="cameraPlaceholder" class="camera-placeholder">
+            <div>
+              <div class="camera-icon">📷</div>
+              Stream not active
+            </div>
+          </div>
+          <img id="liveFeed" class="camera-feed">
+        </div>
+
+        <div class="text-center mt-2">
+          <button id="streamBtn"
+                  class="btn btn-outline-light btn-sm"
+                  onclick="toggleStream()">
+            ▶ Start Live Stream
+          </button>
+        </div>
+
+        <!-- DOWNLOAD BUTTON -->
+        <div class="text-center mt-2">
+          <button class="btn btn-outline-success btn-sm w-75"
+                  onclick="downloadAttendance()">
+            ⬇ Download Attendance CSV
+          </button>
+        </div>
+
+        <!-- NEW DAY / SESSION SETTINGS BUTTON -->
+        <div class="text-center mt-2">
+          <button class="btn btn-outline-info btn-sm w-75"
+                  data-bs-toggle="modal"
+                  data-bs-target="#sessionModal">
+            ⚙ Change Session Date / Start New Day
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- SESSION SETTINGS MODAL -->
+<div class="modal fade" id="sessionModal" tabindex="-1" aria-labelledby="sessionModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-content bg-dark text-white border-secondary">
+      <div class="modal-header border-secondary">
+        <h5 class="modal-title" id="sessionModalLabel">⚙ Attendance Session Settings</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <label for="modalSessionDate" class="form-label">Select Session Date</label>
+          <input type="date" id="modalSessionDate" class="form-control bg-dark text-white border-secondary">
+        </div>
+        <div class="form-check form-switch mb-3">
+          <input class="form-check-input" type="checkbox" id="modalResetCheckbox">
+          <label class="form-check-label text-white fw-bold" for="modalResetCheckbox" style="cursor: pointer;">Start Fresh / Reset Date</label>
+          <div class="text-secondary small">If checked, this clears all existing markings for this date and resets all registered students to "Absent". Leave unchecked to resume/edit.</div>
+        </div>
+      </div>
+      <div class="modal-footer border-secondary">
+        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+        <button type="button" class="btn btn-primary btn-sm" onclick="applySessionSettings()">Apply and Start</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  © 2025 AI Attendance System
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+<script src="{{ url_for('static', filename='js/main.js') }}"></script>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  fetchActiveSession();
+});
+
+async function fetchActiveSession() {
+  try {
+    const response = await fetch("/api/active_session");
+    const data = await response.json();
+    document.getElementById("sessionText").innerText = `Session: ${data.active_date}`;
+    document.getElementById("modalSessionDate").value = data.active_date;
+  } catch (err) {
+    console.error("Error fetching active session:", err);
+  }
+}
+
+async function applySessionSettings() {
+  const date = document.getElementById("modalSessionDate").value;
+  const reset = document.getElementById("modalResetCheckbox").checked;
+
+  if (!date) {
+    alert("Please select a valid date.");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/active_session", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ date, reset })
+    });
+    const data = await response.json();
+    if (response.ok) {
+      document.getElementById("sessionText").innerText = `Session: ${data.active_date}`;
+      // Close modal
+      const modalEl = document.getElementById("sessionModal");
+      const modal = bootstrap.Modal.getInstance(modalEl);
+      if (modal) modal.hide();
+      alert(`Attendance session date set to: ${data.active_date}` + (reset ? " (Initialized Fresh)" : " (Resumed)"));
+    } else {
+      alert("Error setting session: " + data.error);
+    }
+  } catch (err) {
+    alert("Error communicating with server: " + err.message);
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Register Student - AI Attendance</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<nav class="navbar navbar-dark fixed-top">
+  <div class="container d-flex justify-content-between align-items-center">
+    <span class="navbar-brand fw-bold">AI Attendance</span>
+    <ul class="nav nav-pills gap-3">
+      <li class="nav-item">
+        <a class="nav-link" href="/">Home</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link active" href="/register">Register Student</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/history">History</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/about">About</a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>Register New Student</h1>
+  <p>Capture face coordinates from multiple angles to register a new student</p>
+</section>
+
+<div class="container mb-5">
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      
+      <!-- FORM CARD -->
+      <div id="formSection" class="card card-dark p-4 mb-4">
+        <h5 class="text-white mb-3">Student Information</h5>
+        <div class="mb-3">
+          <label for="rollNoInput" class="form-label">Roll Number</label>
+          <input type="number" class="form-control bg-dark text-white border-secondary" id="rollNoInput" placeholder="Enter Roll Number (e.g. 4)" required>
+        </div>
+        <div class="mb-3">
+          <label for="nameInput" class="form-label">Full Name</label>
+          <input type="text" class="form-control bg-dark text-white border-secondary" id="nameInput" placeholder="Enter Full Name" required>
+        </div>
+        <button type="button" class="btn btn-primary w-100" onclick="initiateCapture()">Proceed to Camera Setup</button>
+      </div>
+
+      <!-- CAMERA/CAPTURE CARD (HIDDEN INITIALLY) -->
+      <div id="captureSection" class="card card-dark p-4 mb-4" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h5 class="text-white m-0">Face Capturing Sequence</h5>
+          <span id="captureCounter" class="badge bg-primary fs-6">Photo 0 / 18</span>
+        </div>
+
+        <div class="camera-wrapper position-relative" style="height: 380px;">
+          <!-- LIVE FEED -->
+          <video id="webcam" autoplay playsinline class="w-100 h-100" style="object-fit: cover;"></video>
+          
+          <!-- OVERLAY FOR INSTRUCTIONS & COUNTDOWN -->
+          <div class="capture-overlay d-flex flex-column align-items-center justify-content-center text-center p-3" style="inset: 0; background: rgba(0,0,0,0.65);">
+            <div id="countdownCircle" class="fs-1 fw-bold text-warning mb-2" style="display: none;">3</div>
+            <div id="instructionText" class="instruction-text mb-1">Align your face in the center of the camera.</div>
+            <div id="timerMessage" class="text-secondary small">Waiting to start...</div>
+          </div>
+        </div>
+
+        <div class="text-center mt-3">
+          <button id="startBtn" class="btn btn-success px-4" onclick="startPhotoSession()">▶ Start Capturing (18 Poses)</button>
+        </div>
+
+        <h6 class="text-white mt-4 mb-2">Captured Photos Grid (Need 18 Images at different angles)</h6>
+        <div class="captured-grid" id="photoGrid">
+          <!-- 18 Grid Items filled dynamically -->
+        </div>
+      </div>
+
+      <!-- CONFIRMATION SECTION (HIDDEN INITIALLY) -->
+      <div id="confirmationSection" class="card card-dark p-4 mb-4" style="display: none;">
+        <h4 class="text-white text-center mb-3">📸 All 18 Poses Captured!</h4>
+        <p class="text-secondary text-center mb-4">Please review the captured photos below. You can choose whether to retrain the face recognition model now or save and retrain later.</p>
+        
+        <div class="row justify-content-center mb-4">
+          <div class="col-md-8">
+            <div class="form-check form-switch bg-dark p-3 rounded border border-secondary d-flex align-items-center justify-content-between">
+              <div class="ps-2">
+                <label class="form-check-label text-white fw-bold" for="retrainCheckbox" style="cursor: pointer;">Retrain Model Immediately</label>
+                <div class="text-secondary small">Extract embeddings and update the recognition model. (Takes ~1 min)</div>
+              </div>
+              <input class="form-check-input me-2 fs-4" type="checkbox" id="retrainCheckbox" checked style="cursor: pointer;">
+            </div>
+          </div>
+        </div>
+
+        <div class="d-flex justify-content-center gap-3">
+          <button class="btn btn-outline-light" onclick="window.location.reload()">Discard & Restart</button>
+          <button class="btn btn-success px-4" onclick="submitRegistration()">Save & Complete Registration</button>
+        </div>
+      </div>
+
+      <!-- LOADING/RETRAINING SPINNER -->
+      <div id="trainingSection" class="card card-dark p-5 text-center mb-4" style="display: none;">
+        <div class="spinner-border text-primary fs-2 mb-3" style="width: 3rem; height: 3rem;" role="status"></div>
+        <h4 id="loaderTitle" class="text-white">Retraining AI Face Model...</h4>
+        <p id="loaderText" class="text-secondary mb-0">Extracting facial landmarks and building embeddings. Please wait, this may take up to a minute.</p>
+      </div>
+
+      <!-- SUCCESS MESSAGE -->
+      <div id="successSection" class="card card-dark p-5 text-center mb-4" style="display: none;">
+        <div class="text-success fs-1 mb-2">✓</div>
+        <h4 class="text-white">Registration Complete!</h4>
+        <p class="text-secondary" id="successDetails"></p>
+        <div class="d-flex justify-content-center gap-3">
+          <button class="btn btn-outline-light" onclick="window.location.reload()">Register Another</button>
+          <a href="/" class="btn btn-primary">Go to Home</a>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<footer>
+  © 2025 AI Attendance System
+</footer>
+
+<!-- Canvas for capturing frame data -->
+<canvas id="captureCanvas" style="display: none;"></canvas>
+
+<script>
+let rollNo = null;
+let studentName = null;
+let localStream = null;
+let currentStep = 0;
+const totalSteps = 18;
+const secondsDelay = 2; // 2 seconds between photos
+let timerInterval = null;
+let capturedImages = []; // Local storage for base64 images
+
+// Pose instructions list
+const instructions = [
+  "Look straight at the camera (Pose 1/18)",
+  "Look straight at the camera (Pose 2/18)",
+  "Look straight, neutral face (Pose 3/18)",
+  "Turn your head slightly to the LEFT (Pose 4/18)",
+  "Turn your head slightly to the LEFT (Pose 5/18)",
+  "Tilt your head further to the LEFT (Pose 6/18)",
+  "Turn your head slightly to the RIGHT (Pose 7/18)",
+  "Turn your head slightly to the RIGHT (Pose 8/18)",
+  "Tilt your head further to the RIGHT (Pose 9/18)",
+  "Look slightly UPWARDS (Pose 10/18)",
+  "Look slightly UPWARDS (Pose 11/18)",
+  "Tilt your head UPWARDS (Pose 12/18)",
+  "Look slightly DOWNWARDS (Pose 13/18)",
+  "Look slightly DOWNWARDS (Pose 14/18)",
+  "Tilt your head DOWNWARDS (Pose 15/18)",
+  "Tilt your head towards your LEFT shoulder (Pose 16/18)",
+  "Tilt your head towards your RIGHT shoulder (Pose 17/18)",
+  "Smile slightly at the camera (Pose 18/18)"
+];
+
+// Initialize the 18 empty grid slots
+const photoGrid = document.getElementById("photoGrid");
+for (let i = 0; i < totalSteps; i++) {
+  const thumb = document.createElement("img");
+  thumb.className = "captured-thumb";
+  thumb.id = `thumb-${i}`;
+  thumb.src = "data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='100' height='100'><rect width='100' height='100' fill='%231f242c'/><text x='50%' y='55%' font-family='sans-serif' font-size='12' fill='%236b7280' text-anchor='middle'>Pose " + (i+1) + "</text></svg>";
+  photoGrid.appendChild(thumb);
+}
+
+async function initiateCapture() {
+  const rollInput = document.getElementById("rollNoInput");
+  const nameInput = document.getElementById("nameInput");
+
+  if (!rollInput.value || !nameInput.value) {
+    alert("Please fill in both Roll Number and Full Name.");
+    return;
+  }
+
+  rollNo = parseInt(rollInput.value);
+  studentName = nameInput.value.trim();
+
+  // Validate fields
+  if (isNaN(rollNo) || rollNo <= 0) {
+    alert("Please enter a valid Roll Number.");
+    return;
+  }
+
+  // Request camera permissions
+  try {
+    localStream = await navigator.mediaDevices.getUserMedia({
+      video: { width: 640, height: 480, facingMode: "user" }
+    });
+    const video = document.getElementById("webcam");
+    video.srcObject = localStream;
+    
+    // Hide form, show camera screen
+    document.getElementById("formSection").style.display = "none";
+    document.getElementById("captureSection").style.display = "block";
+  } catch (err) {
+    alert("Could not access camera: " + err.message);
+  }
+}
+
+function startPhotoSession() {
+  document.getElementById("startBtn").style.display = "none";
+  document.getElementById("countdownCircle").style.display = "block";
+  
+  runCaptureCycle();
+}
+
+function runCaptureCycle() {
+  if (currentStep >= totalSteps) {
+    showConfirmationSection();
+    return;
+  }
+
+  // Highlight active thumbnail slot
+  document.querySelectorAll(".captured-thumb").forEach(el => el.classList.remove("active"));
+  const activeThumb = document.getElementById(`thumb-${currentStep}`);
+  activeThumb.classList.add("active");
+
+  // Show instruction
+  document.getElementById("instructionText").innerText = instructions[currentStep];
+  document.getElementById("captureCounter").innerText = `Photo ${currentStep + 1} / ${totalSteps}`;
+
+  let timeLeft = secondsDelay;
+  document.getElementById("countdownCircle").innerText = timeLeft;
+  document.getElementById("timerMessage").innerText = `Capturing next pose in ${timeLeft}s...`;
+
+  timerInterval = setInterval(async () => {
+    timeLeft--;
+    if (timeLeft > 0) {
+      document.getElementById("countdownCircle").innerText = timeLeft;
+      document.getElementById("timerMessage").innerText = `Capturing next pose in ${timeLeft}s...`;
+    } else {
+      clearInterval(timerInterval);
+      document.getElementById("countdownCircle").innerText = "📸";
+      document.getElementById("timerMessage").innerText = "Capturing...";
+      
+      // Capture frame
+      await captureSnapshot(currentStep);
+
+      // Increment step & queue next capture
+      currentStep++;
+      setTimeout(runCaptureCycle, 500); // 0.5s pause to display the flash before moving on
+    }
+  }, 1000);
+}
+
+async function captureSnapshot(stepIndex) {
+  const video = document.getElementById("webcam");
+  const canvas = document.getElementById("captureCanvas");
+  const context = canvas.getContext("2d");
+
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+  const dataUrl = canvas.toDataURL("image/jpeg");
+
+  // Store image locally
+  capturedImages[stepIndex] = dataUrl;
+
+  // Display thumbnail in grid
+  const thumb = document.getElementById(`thumb-${stepIndex}`);
+  thumb.src = dataUrl;
+  thumb.classList.add("filled");
+}
+
+function showConfirmationSection() {
+  // Stop webcam
+  if (localStream) {
+    localStream.getTracks().forEach(track => track.stop());
+  }
+
+  // Remove active styling on thumbs
+  document.querySelectorAll(".captured-thumb").forEach(el => el.classList.remove("active"));
+
+  // Hide capture section, show confirmation details section
+  document.getElementById("captureSection").style.display = "none";
+  document.getElementById("confirmationSection").style.display = "block";
+}
+
+async function submitRegistration() {
+  const shouldRetrain = document.getElementById("retrainCheckbox").checked;
+
+  document.getElementById("confirmationSection").style.display = "none";
+  const trainingSection = document.getElementById("trainingSection");
+  
+  if (shouldRetrain) {
+    document.getElementById("loaderTitle").innerText = "Retraining AI Face Model...";
+    document.getElementById("loaderText").innerText = "Extracting facial landmarks and building embeddings. Please wait, this may take up to a minute.";
+  } else {
+    document.getElementById("loaderTitle").innerText = "Saving Registration Data...";
+    document.getElementById("loaderText").innerText = "Saving student information and face photos. Please wait...";
+  }
+  
+  trainingSection.style.display = "block";
+
+  try {
+    const response = await fetch("/api/register/finalize", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        roll_no: rollNo,
+        name: studentName,
+        images: capturedImages,
+        retrain: shouldRetrain
+      })
+    });
+
+    const result = await response.json();
+    trainingSection.style.display = "none";
+
+    if (response.ok) {
+      let msg = `Student ${studentName} (Roll No: ${rollNo}) has been successfully saved.`;
+      if (result.retrained) {
+        msg += " The face recognition model has been successfully retrained.";
+      } else {
+        msg += " The model was not retrained. Face recognition will apply once the model is rebuilt next.";
+      }
+      document.getElementById("successDetails").innerText = msg;
+      document.getElementById("successSection").style.display = "block";
+    } else {
+      alert("Error completing registration: " + result.error);
+      window.location.reload();
+    }
+  } catch (err) {
+    trainingSection.style.display = "none";
+    alert("Error completing registration: " + err.message);
+    window.location.reload();
+  }
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Attendance History - AI Attendance</title>
+<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+<nav class="navbar navbar-dark fixed-top">
+  <div class="container d-flex justify-content-between align-items-center">
+    <span class="navbar-brand fw-bold">AI Attendance</span>
+    <ul class="nav nav-pills gap-3">
+      <li class="nav-item">
+        <a class="nav-link" href="/">Home</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/register">Register Student</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link active" href="/history">History</a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link" href="/about">About</a>
+      </li>
+    </ul>
+  </div>
+</nav>
+
+<section class="hero">
+  <h1>Attendance History Logs</h1>
+  <p>Browse historical daily attendance records month-by-month</p>
+</section>
+
+<div class="container mb-5">
+  <div class="row">
+    
+    <!-- LEFT SIDEBAR: MONTH ACCORDION -->
+    <div class="col-md-4 mb-4">
+      <div class="card card-dark p-3">
+        <h5 class="text-white mb-3">Calendar Logs</h5>
+        <div class="accordion accordion-dark" id="historyAccordion">
+          <!-- Accordion months & date items will load dynamically here -->
+          <div class="text-center text-secondary py-3" id="loadingLogs">
+            <div class="spinner-border spinner-border-sm text-primary me-2" role="status"></div>
+            Loading available logs...
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- RIGHT SECTION: DETAILS TABLE -->
+    <div class="col-md-8 mb-4">
+      <div id="noSelectionMessage" class="card card-dark p-5 text-center text-secondary" style="height: 100%; display: flex; align-items: center; justify-content: center;">
+        <div>
+          <div class="fs-1 mb-2">📅</div>
+          <h5>No Date Selected</h5>
+          <p class="mb-0">Please select a date from the calendar logs sidebar to view attendance.</p>
+        </div>
+      </div>
+
+      <div id="detailsSection" class="card card-dark p-4" style="display: none;">
+        <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3 border-bottom border-secondary pb-3">
+          <div>
+            <h4 class="text-white m-0" id="selectedDateTitle">2026-07-18</h4>
+            <span class="text-secondary small">Daily Attendance Record</span>
+          </div>
+          <div class="d-flex gap-2">
+            <button class="btn btn-outline-danger btn-sm" id="deleteBtn" onclick="deleteSelectedLog()">
+              🗑 Delete Log
+            </button>
+            <button class="btn btn-outline-success btn-sm" id="downloadBtn" onclick="downloadSelectedCsv()">
+              ⬇ Download Daily CSV
+            </button>
+          </div>
+        </div>
+
+        <!-- STATS CARDS -->
+        <div class="row mb-4">
+          <div class="col-sm-4 mb-2">
+            <div class="bg-dark p-3 rounded text-center border border-secondary">
+              <h6 class="text-secondary mb-1">Total Students</h6>
+              <h3 class="text-white mb-0" id="statTotal">0</h3>
+            </div>
+          </div>
+          <div class="col-sm-4 mb-2">
+            <div class="bg-dark p-3 rounded text-center border border-secondary">
+              <h6 class="text-success mb-1">Present</h6>
+              <h3 class="text-success mb-0" id="statPresent">0</h3>
+            </div>
+          </div>
+          <div class="col-sm-4 mb-2">
+            <div class="bg-dark p-3 rounded text-center border border-secondary">
+              <h6 class="text-danger mb-1">Absent</h6>
+              <h3 class="text-danger mb-0" id="statAbsent">0</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- SEARCH AND FILTERS -->
+        <div class="d-flex flex-wrap gap-2 justify-content-between align-items-center mb-3">
+          <div class="btn-group btn-group-sm" role="group">
+            <input type="radio" class="btn-check" name="statusFilter" id="filterAll" checked onclick="filterAttendance()">
+            <label class="btn btn-outline-secondary" for="filterAll">All</label>
+
+            <input type="radio" class="btn-check" name="statusFilter" id="filterPresent" onclick="filterAttendance()">
+            <label class="btn btn-outline-secondary" for="filterPresent">Present</label>
+
+            <input type="radio" class="btn-check" name="statusFilter" id="filterAbsent" onclick="filterAttendance()">
+            <label class="btn btn-outline-secondary" for="filterAbsent">Absent</label>
+          </div>
+
+          <div style="width: 250px;">
+            <input type="text" class="form-control form-control-sm bg-dark text-white border-secondary" id="searchInput" placeholder="Search by name or roll..." onkeyup="filterAttendance()">
+          </div>
+        </div>
+
+        <!-- TABLE -->
+        <div class="table-responsive">
+          <table class="table table-dark table-hover align-middle border-secondary">
+            <thead>
+              <tr>
+                <th width="15%">Roll No</th>
+                <th width="45%">Name</th>
+                <th width="20%">Status</th>
+                <th width="20%">Detection Time</th>
+              </tr>
+            </thead>
+            <tbody id="attendanceTableBody">
+              <!-- Loaded dynamically -->
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  © 2025 AI Attendance System
+</footer>
+
+<script>
+let currentSelectedDate = null;
+let rawAttendanceData = [];
+
+document.addEventListener("DOMContentLoaded", () => {
+  loadHistoryLogs();
+});
+
+// Fetch month-wise list of dates
+async function loadHistoryLogs() {
+  try {
+    const response = await fetch("/api/history");
+    const months = await response.json();
+    
+    const accordion = document.getElementById("historyAccordion");
+    accordion.innerHTML = ""; // Clear loader
+
+    if (Object.keys(months).length === 0) {
+      accordion.innerHTML = `<div class="text-center text-secondary py-3">No attendance logs found yet.</div>`;
+      return;
+    }
+
+    let isFirst = true;
+    let accordionHtml = "";
+
+    // Sort months descending
+    const sortedMonths = Object.keys(months).sort().reverse();
+
+    sortedMonths.forEach((monthKey, idx) => {
+      const dates = months[monthKey]; // List of dates: ["2026-07-18", "2026-07-17"]
+      const collapseId = `collapse-${idx}`;
+      const headerId = `heading-${idx}`;
+      
+      // Formatting header label, e.g. "2026-07" to "July 2026"
+      const dateObj = new Date(monthKey + "-02"); // Add buffer day to prevent timezone shifts
+      const monthLabel = dateObj.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+
+      accordionHtml += `
+        <div class="accordion-item">
+          <h2 class="accordion-header" id="${headerId}">
+            <button class="accordion-button ${idx === 0 ? '' : 'collapsed'}" type="button" data-bs-toggle="collapse" data-bs-target="#${collapseId}" aria-expanded="${idx === 0 ? 'true' : 'false'}" aria-controls="${collapseId}">
+              📁 ${monthLabel}
+            </button>
+          </h2>
+          <div id="${collapseId}" class="accordion-collapse collapse ${idx === 0 ? 'show' : ''}" aria-labelledby="${headerId}" data-bs-parent="#historyAccordion">
+            <div class="accordion-body p-0">
+              <div class="list-group list-group-flush list-group-dark">
+      `;
+
+      // Sort dates descending
+      dates.sort().reverse().forEach(dateStr => {
+        accordionHtml += `
+          <button type="button" class="list-group-item list-group-item-action py-2 px-3 border-0 rounded-0" onclick="selectDate('${dateStr}', this)">
+            📄 ${dateStr}
+          </button>
+        `;
+      });
+
+      accordionHtml += `
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    accordion.innerHTML = accordionHtml;
+
+  } catch (err) {
+    console.error("Error loading logs:", err);
+    document.getElementById("historyAccordion").innerHTML = `<div class="text-center text-danger py-3">Error loading logs.</div>`;
+  }
+}
+
+// Select a date and fetch details
+async function selectDate(dateStr, element) {
+  currentSelectedDate = dateStr;
+
+  // Highlight selected sidebar item
+  document.querySelectorAll(".list-group-item").forEach(el => el.classList.remove("active"));
+  if (element) {
+    element.classList.add("active");
+  }
+
+  // Load details from API
+  try {
+    const response = await fetch(`/api/history/detail/${dateStr}`);
+    if (!response.ok) throw new Error("Could not fetch log details");
+    
+    rawAttendanceData = await response.json();
+    
+    // Update UI Elements
+    document.getElementById("selectedDateTitle").innerText = dateStr;
+    document.getElementById("noSelectionMessage").style.display = "none";
+    document.getElementById("detailsSection").style.display = "block";
+
+    // Populate data
+    renderStats();
+    filterAttendance();
+
+  } catch (err) {
+    alert("Error loading attendance details: " + err.message);
+  }
+}
+
+function renderStats() {
+  const total = rawAttendanceData.length;
+  const present = rawAttendanceData.filter(d => d.status === "Present").length;
+  const absent = total - present;
+
+  document.getElementById("statTotal").innerText = total;
+  document.getElementById("statPresent").innerText = present;
+  document.getElementById("statAbsent").innerText = absent;
+}
+
+function filterAttendance() {
+  const searchVal = document.getElementById("searchInput").value.toLowerCase();
+  
+  let showPresent = document.getElementById("filterPresent").checked;
+  let showAbsent = document.getElementById("filterAbsent").checked;
+  let showAll = document.getElementById("filterAll").checked;
+
+  const tbody = document.getElementById("attendanceTableBody");
+  tbody.innerHTML = "";
+
+  const filtered = rawAttendanceData.filter(item => {
+    // Search match
+    const nameMatch = item.name.toLowerCase().includes(searchVal);
+    const rollMatch = item.roll_no.toString().includes(searchVal);
+    if (!nameMatch && !rollMatch) return false;
+
+    // Status filter match
+    if (showPresent && item.status !== "Present") return false;
+    if (showAbsent && item.status !== "Absent") return false;
+
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    tbody.innerHTML = `<tr><td colspan="4" class="text-center text-secondary py-4">No records matching the filters.</td></tr>`;
+    return;
+  }
+
+  filtered.forEach(item => {
+    const statusBadge = item.status === "Present" 
+      ? `<span class="badge-present">✓ Present</span>`
+      : `<span class="badge-absent">✗ Absent</span>`;
+      
+    const timeDisplay = item.time ? item.time : `<span class="text-secondary">-</span>`;
+
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td class="fw-bold">${item.roll_no}</td>
+      <td>${item.name}</td>
+      <td>${statusBadge}</td>
+      <td>${timeDisplay}</td>
+    `;
+    tbody.appendChild(row);
+  });
+}
+
+function downloadSelectedCsv() {
+  if (currentSelectedDate) {
+    window.location.href = `/download_attendance?date=${currentSelectedDate}`;
+  }
+}
+
+async function deleteSelectedLog() {
+  if (!currentSelectedDate) return;
+
+  const confirmDelete = confirm(`Are you sure you want to delete the attendance log for ${currentSelectedDate}? This cannot be undone.`);
+  if (!confirmDelete) return;
+
+  try {
+    const response = await fetch(`/api/history/delete/${currentSelectedDate}`, {
+      method: "DELETE"
+    });
+    const result = await response.json();
+    
+    if (response.ok) {
+      alert(`Successfully deleted attendance log for ${currentSelectedDate}`);
+      currentSelectedDate = null;
+      document.getElementById("noSelectionMessage").style.display = "flex";
+      document.getElementById("detailsSection").style.display = "none";
+      loadHistoryLogs();
+    } else {
+      alert("Error deleting log: " + result.error);
+    }
+  } catch (err) {
+    alert("Error communicating with server: " + err.message);
+  }
+}
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
